@@ -1,0 +1,127 @@
+services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.external-url=http://prometheus.noe-wil.site'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules:/etc/prometheus/rules
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager
+    container_name: alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--web.external-url=http://alertmanager.noe-wil.site'
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    restart: unless-stopped
+
+  node_exporter:
+    image: prom/node-exporter
+    container_name: node_exporter
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor
+    container_name: cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    restart: unless-stopped
+
+  mariadb_exporter:
+    image: prom/mysqld-exporter:v0.14.0
+    container_name: mariadb_exporter
+    environment:
+      DATA_SOURCE_NAME: "exporter:password@(mariadb:3306)/"
+    ports:
+      - "9104:9104"
+    restart: unless-stopped
+
+  mariadb:
+    image: mariadb:10.11
+    container_name: mariadb
+    env_file:
+      - .env
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./mariadb/usuario_exporter.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+
+  django-apache:
+    image: python:3.10
+    container_name: django-apache
+    working_dir: /app
+    volumes:
+      - ./django:/app
+    env_file:
+      - .env
+    command: bash -c "pip install -r requirements.txt && python manage.py migrate && python manage.py runserver 0.0.0.0:80"
+    ports:
+      - "8000:80"
+    restart: unless-stopped
+
+  tomcat:
+    image: tomcat:9.0
+    container_name: tomcat
+    environment:
+      - CATALINA_OPTS=-javaagent:/jmx/jmx_prometheus_javaagent.jar=9404:/jmx/config.yaml
+    volumes:
+      - ./tomcat/jmx_prometheus_javaagent.jar:/jmx/jmx_prometheus_javaagent.jar:ro
+      - ./tomcat/config.yaml:/jmx/config.yaml:ro
+    ports:
+      - "8082:8080"
+      - "9404:9404"
+    restart: unless-stopped
+
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    env_file:
+      - .env
+    environment:
+      WORDPRESS_DB_HOST: mariadb:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+    ports:
+      - "8083:80"
+    restart: unless-stopped
+
+  blackbox_exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox_exporter
+    ports:
+      - "9115:9115"
+    restart: unless-stopped
+
+volumes:
+  grafana_data:
+  mariadb_data:

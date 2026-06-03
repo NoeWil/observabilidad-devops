@@ -1,0 +1,94 @@
+groups:
+  - name: host-alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso alto de CPU"
+          description: "La instancia {{ $labels.instance }} tiene CPU superior al 80% durante más de 5 minutos."
+
+      - alert: HighMemoryUsage
+        expr: 100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso alto de memoria RAM"
+          description: "La instancia {{ $labels.instance }} tiene memoria superior al 85%."
+
+      - alert: DiskAlmostFull
+        expr: 100 * (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disco casi lleno"
+          description: "El filesystem {{ $labels.mountpoint }} en {{ $labels.instance }} supera el 90% de uso."
+
+  - name: service-alerts
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Servicio no disponible"
+          description: "El target {{ $labels.job }} en {{ $labels.instance }} no está respondiendo."
+
+      - alert: MariaDBDown
+        expr: mysql_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Base de Datos Caída"
+          description: "MariaDB ha dejado de responder."
+
+      - alert: DjangoDown
+        expr: up{job="django"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Django Caído"
+          description: "El servicio Django/Apache no está disponible."
+
+      - alert: TomcatDown
+        expr: up{job="tomcat"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tomcat Caído"
+          description: "El servicio Tomcat/JMX ha dejado de responder."
+
+      - alert: WordPressDown
+        expr: probe_success{job="wordpress"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "WordPress Inaccesible"
+          description: "El sitio WordPress no está devolviendo HTTP 200."
+
+      - alert: HighLatency
+        expr: probe_duration_seconds > 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latencia Alta"
+          description: "El tiempo de respuesta supera 1 segundo."
+
+      - alert: ContainerRestarting
+        expr: rate(cadvisor_container_restart_count[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Contenedor reiniciando"
+          description: "El contenedor {{ $labels.name }} se ha reiniciado varias veces."
